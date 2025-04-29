@@ -58,5 +58,5 @@ if __name__ =='__main__':
     out = embedder(input_ids)
     print("Input IDs shape:", input_ids.shape)  # (2, 10)
     print("Output embedding shape:", out.shape)  # (2, 10, 512)
-    torch.nn.TransformerEncoderLayer
-    torch.nn.TransformerEncoder
+    #torch.nn.TransformerEncoderLayer
+    #torch.nn.TransformerEncoder
