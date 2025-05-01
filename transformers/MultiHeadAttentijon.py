@@ -16,16 +16,32 @@ class MultiHeadAttention(nn.Module):
         self.W_v = nn.Linear(d_model, d_model)
         self.W_o = nn.Linear(d_model, d_model)
 
-    def forward(self, X, padding_mask=None, causal_mask=False):
-        batch_size, seq_len, _ = X.size()
+    def forward(self, X, padding_mask=None, causal_mask=False, query=None, key=None, value=None):
+        # 分别从 query/key/value 中获取长度（注意必须传）
+        Q_in = X if query is None else query
+        K_in = X if key is None else key
+        V_in = X if value is None else value
 
-        Q = self.W_q(X)
-        K = self.W_k(X)
-        V = self.W_v(X)
+        batch_size = Q_in.size(0)
+        q_len = Q_in.size(1)
+        k_len = K_in.size(1)
+        v_len = V_in.size(1)
 
-        Q = Q.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
-        K = K.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
-        V = V.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        Q = self.W_q(Q_in)
+        K = self.W_k(K_in)
+        V = self.W_v(V_in)
+
+
+        # Q = Q.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        # K = K.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        # V = V.view(batch_size, seq_len, self.num_heads, self.d_k).transpose(1, 2)
+        # in cross-attention step Q!= K == V
+
+        seq_len = k_len
+
+        Q = Q.view(batch_size, q_len, self.num_heads, self.d_k).transpose(1, 2)  # (B, h, q_len, d_k)
+        K = K.view(batch_size, k_len, self.num_heads, self.d_k).transpose(1, 2)  # (B, h, k_len, d_k)
+        V = V.view(batch_size, v_len, self.num_heads, self.d_k).transpose(1, 2)  # (B, h, v_len, d_k)
 
         scores = torch.matmul(Q, K.transpose(-2, -1)) / torch.sqrt(torch.tensor(self.d_k, dtype=torch.float32, device=X.device))
 
@@ -40,7 +56,8 @@ class MultiHeadAttention(nn.Module):
         alpha = F.softmax(scores, dim=-1)
         context = torch.matmul(alpha, V)
 
-        context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+        # context = context.transpose(1, 2).contiguous().view(batch_size, seq_len, self.d_model)
+        context = context.transpose(1, 2).contiguous().view(batch_size, q_len, self.d_model)
         output = self.W_o(context)
 
         return output, alpha
